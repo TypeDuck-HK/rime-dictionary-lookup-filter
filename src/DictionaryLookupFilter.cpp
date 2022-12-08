@@ -14,7 +14,7 @@
 #include <rime/dict/reverse_lookup_dictionary.h>
 #include <rime/dict/dictionary.h>
 #include <rime/gear/translator_commons.h>
-
+#include <algorithm>
 namespace rime {
 
 class MultiReverseLookupFilterTranslation : public CacheTranslation {
@@ -89,21 +89,22 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     auto phrase = As<Phrase>(Candidate::GetGenuineCandidate(cand));
     if (!phrase)
         return;
-    string commentToCommit = cand->comment();
+    string spellingCode = phrase->comment();
+    const string& text = cand->text();
     rime::DictEntryIterator it;
-    for (dict_->LookupWords(&it, cand->text(), false); !it.exhausted(); it.Next()) {
+    
+    spellingCode.erase(std::remove(spellingCode.begin(), spellingCode.end(), ' '), spellingCode.end());
+    string queryCode = text + "|" + spellingCode;   // to sperate the jyutping and json temporarily
+    dict_->LookupWords(&it, queryCode, false);
+    if(!it.exhausted())
+    {
         string dictRes = it.Peek()->text;
-        comment_formatter_.Apply(&dictRes);
+        //comment_formatter_.Apply(&dictRes);
         if(dictRes.empty())
         {
-            continue;
+            return;
         }
-        commentToCommit += " ";
-        commentToCommit += dictRes;
-    }
-    if(!commentToCommit.empty())
-    {
-        phrase->set_comment(commentToCommit);
+        phrase->set_comment(dictRes);
     }
 }
 
