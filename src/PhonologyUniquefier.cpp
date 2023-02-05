@@ -5,7 +5,7 @@
 //  Created by leung tsinam on 28/10/2022.
 //
 
-#include "PholonogyUniquefier.hpp"
+#include "PhonologyUniquefier.hpp"
 
 #include <rime/candidate.h>
 #include <rime/engine.h>
@@ -17,9 +17,9 @@
 #include <algorithm>
 namespace rime {
 
-class PholonogyUniquifiedTranslation : public CacheTranslation {
+class PhonologyUniquifiedTranslation : public CacheTranslation {
  public:
-  PholonogyUniquifiedTranslation(an<Translation> translation,
+  PhonologyUniquifiedTranslation(an<Translation> translation,
                         CandidateList* candidates)
       : CacheTranslation(translation), candidates_(candidates) {
     Uniquify();
@@ -33,7 +33,7 @@ class PholonogyUniquifiedTranslation : public CacheTranslation {
   CandidateList* candidates_;
 };
 
-bool PholonogyUniquifiedTranslation::Next() {
+bool PhonologyUniquifiedTranslation::Next() {
   return CacheTranslation::Next() && Uniquify();
 }
 
@@ -48,7 +48,7 @@ static CandidateList::iterator find_text_match(const an<Candidate>& target,
   return end;
 }
 
-bool PholonogyUniquifiedTranslation::Uniquify() {
+bool PhonologyUniquifiedTranslation::Uniquify() {
   while (!exhausted()) {
     auto next = Peek();
     CandidateList::iterator previous = find_text_match(
@@ -68,12 +68,12 @@ bool PholonogyUniquifiedTranslation::Uniquify() {
   return false;
 }
 
-PholonogyUniquifier::PholonogyUniquifier(const rime::Ticket &ticket) : Filter(ticket){
+PhonologyUniquifier::PhonologyUniquifier(const rime::Ticket &ticket) : Filter(ticket){
     
 }
 
-an<rime::Translation> PholonogyUniquifier::Apply(an<rime::Translation> translation, rime::CandidateList *candidates) { 
-    return New<PholonogyUniquifiedTranslation>(translation, candidates);
+an<rime::Translation> PhonologyUniquifier::Apply(an<rime::Translation> translation, rime::CandidateList *candidates) { 
+    return New<PhonologyUniquifiedTranslation>(translation, candidates);
 }
 
 
