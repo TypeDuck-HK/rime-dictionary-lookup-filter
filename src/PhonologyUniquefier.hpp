@@ -5,8 +5,8 @@
 //  Created by leung tsinam on 28/10/2022.
 //
 
-#ifndef PholonogyUniquefier_hpp
-#define PholonogyUniquefier_hpp
+#ifndef PhonologyUniquefier_hpp
+#define PhonologyUniquefier_hpp
 
 #include <rime/common.h>
 #include <rime/filter.h>
@@ -18,13 +18,13 @@
 
 namespace rime {
 
-class PholonogyUniquifier : public Filter{
+class PhonologyUniquifier : public Filter{
 public:
-    explicit PholonogyUniquifier(const Ticket& ticket);
+    explicit PhonologyUniquifier(const Ticket& ticket);
 
     virtual an<Translation> Apply(an<Translation> translation,
                                           CandidateList* candidates);
 };
 };
 
-#endif /* PholonogyUniquefier_hpp */
+#endif /* PhonologyUniquefier_hpp */
