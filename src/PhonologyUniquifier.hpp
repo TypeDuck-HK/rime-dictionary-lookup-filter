@@ -1,12 +1,12 @@
 //
-//  MultiReverseLookupFilter.hpp
-//  rime-multi-reverse-lookup-filter-objs
+//  PhonologyUniquifier.hpp
+//  rime-dictionary-lookup-filter-objs
 //
 //  Created by leung tsinam on 28/10/2022.
 //
 
-#ifndef PhonologyUniquefier_hpp
-#define PhonologyUniquefier_hpp
+#ifndef PhonologyUniquifier_hpp
+#define PhonologyUniquifier_hpp
 
 #include <rime/common.h>
 #include <rime/filter.h>
@@ -14,7 +14,6 @@
 #include <rime/gear/filter_commons.h>
 #include <rime/ticket.h>
 #include <rime/dict/dictionary.h>
-
 
 namespace rime {
 
@@ -27,4 +26,4 @@ public:
 };
 };
 
-#endif /* PhonologyUniquefier_hpp */
+#endif /* PhonologyUniquifier_hpp */

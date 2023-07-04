@@ -1,14 +1,17 @@
 //
-// Copyright CanCLID Developers
-// Distributed under GPLv3
+//  modules.cc
+//  rime-dictionary-lookup-filter-objs
+//
+//  Created by leung tsinam on 28/10/2022.
 //
 
 #include <rime/common.h>
 #include <rime/registry.h>
 #include <rime_api.h>
 #include "dictionary_lookup_filter.hpp"
-#include "PhonologyUniquefier.hpp"
+#include "PhonologyUniquifier.hpp"
 #include <rime/component.h>
+
 static void rime_multi_reverse_lookup_initialize() {
     using namespace rime;
     

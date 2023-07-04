@@ -1,11 +1,11 @@
 //
-//  MultiReverseLookupFilter.cpp
-//  rime-multi-reverse-lookup-filter-objs
+//  DictionaryLookupFilter.cpp
+//  rime-dictionary-lookup-filter-objs
 //
 //  Created by leung tsinam on 28/10/2022.
 //
 
-#include "dictionary_lookup_filter.hpp"
+#include "DictionaryLookupFilter.hpp"
 
 #include <rime/candidate.h>
 #include <rime/engine.h>
@@ -15,11 +15,12 @@
 #include <rime/dict/dictionary.h>
 #include <rime/gear/translator_commons.h>
 #include <algorithm>
+
 namespace rime {
 
-class MultiReverseLookupFilterTranslation : public CacheTranslation {
+class DictionaryLookupFilterTranslation : public CacheTranslation {
 public:
-    MultiReverseLookupFilterTranslation(an<Translation> translation,
+    DictionaryLookupFilterTranslation(an<Translation> translation,
                                         DictionaryLookupFilter* filter)
     : CacheTranslation(translation), filter_(filter) {
     }
@@ -29,7 +30,7 @@ protected:
     DictionaryLookupFilter* filter_;
 };
 
-an<Candidate> MultiReverseLookupFilterTranslation::Peek() {
+an<Candidate> DictionaryLookupFilterTranslation::Peek() {
     auto cand = CacheTranslation::Peek();
     if (cand) {
         filter_->Process(cand);
@@ -77,7 +78,7 @@ an<Translation> DictionaryLookupFilter::Apply(
     {
         return translation;
     }
-    return New<MultiReverseLookupFilterTranslation>(translation, this);
+    return New<DictionaryLookupFilterTranslation>(translation, this);
 }
 
 void DictionaryLookupFilter::Process(const an<Candidate>& cand) {

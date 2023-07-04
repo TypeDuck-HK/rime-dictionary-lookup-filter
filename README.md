@@ -17,7 +17,7 @@ A librime filter plugin that can lookup dictionaries and override current commen
 
 ```bash
 cd librime/plugins/
-git clone https://github.com/TsinamLeung/rime-dictionary-lookup-filter.git dictionary_plugin
+git clone https://github.com/TypeDuck-HK/rime-dictionary-lookup-filter.git dictionary_plugin
 ```
 
 then compile librime
@@ -68,7 +68,7 @@ schema:
 switches:
   - name: ascii_mode
     reset: 0
-    states: [ 中文, 西文 ]
+    states: [ 中文, 英文 ]
 
 engine:
   processors:
@@ -93,5 +93,5 @@ sort: original
 use_preset_vocabulary: false
 ...
 
-(aPlaceName)	香港|hoeng1gong2
+(a place name) Hong Kong	香港|hoeng1gong2
 ```

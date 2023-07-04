@@ -1,11 +1,11 @@
 //
-//  MultiReverseLookupFilter.cpp
-//  rime-multi-reverse-lookup-filter-objs
+//  PhonologyUniquifier.cpp
+//  rime-dictionary-lookup-filter-objs
 //
 //  Created by leung tsinam on 28/10/2022.
 //
 
-#include "PhonologyUniquefier.hpp"
+#include "PhonologyUniquifier.hpp"
 
 #include <rime/candidate.h>
 #include <rime/engine.h>
@@ -15,6 +15,7 @@
 #include <rime/dict/dictionary.h>
 #include <rime/gear/translator_commons.h>
 #include <algorithm>
+
 namespace rime {
 
 class PhonologyUniquifiedTranslation : public CacheTranslation {
@@ -78,4 +79,3 @@ an<rime::Translation> PhonologyUniquifier::Apply(an<rime::Translation> translati
 
 
 }  // namespace rime
-
