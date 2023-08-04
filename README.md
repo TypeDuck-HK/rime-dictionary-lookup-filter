@@ -1,18 +1,6 @@
 # rime-dictionary-lookup-filter
-A librime filter plugin that can lookup dictionaries and override current comments of candidates
+A librime filter plugin that can lookup dictionaries and override current comments of candidates with comments provided by another dictionary
 
-## components
-
-1. phonology_uniquifier
-  deduplicate by candidates entry and it's comments;
-  e.g:
-  ```
-  1. 名 ming4
-  2. 名 meng2
-  ```
-2. dictionary_lookup_filter
-  to give comment to candidates,the comments were provided by another dictionary.
-  
 ## installation
 
 ```bash
@@ -32,7 +20,7 @@ example: in jyutping.schema.yaml
     - simplifier
     - simplifier@emoji_suggestion
 ```
-put `phonology_uniquifier` and `dictionary_lookup_filter` on below.
+put `dictionary_lookup_filter` on below.
 
 ```yaml
   filters:
@@ -40,7 +28,6 @@ put `phonology_uniquifier` and `dictionary_lookup_filter` on below.
     - simplifier@trad_tw
     - simplifier
     - simplifier@emoji_suggestion
-    - phonology_uniquifier
     - dictionary_lookup_filter
 ```
 

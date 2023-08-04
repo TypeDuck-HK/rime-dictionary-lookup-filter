@@ -14,7 +14,10 @@
 #include <rime/dict/reverse_lookup_dictionary.h>
 #include <rime/dict/dictionary.h>
 #include <rime/gear/translator_commons.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/range/algorithm_ext/erase.hpp>
 #include <algorithm>
+#include <unordered_set>
 
 namespace rime {
 
@@ -63,14 +66,9 @@ void DictionaryLookupFilter::Initialize() {
         if (dict_)
             dict_->Load();
     }
-
-    if (Config* config = engine_->schema()->config()) {
-        comment_formatter_.Load(config->GetList(name_space_ + "/comment_format"));
-    }
 }
 
-an<Translation> DictionaryLookupFilter::Apply(
-                                                an<Translation> translation, CandidateList* candidates) {
+an<Translation> DictionaryLookupFilter::Apply(an<Translation> translation, CandidateList* candidates) {
     if (!initialized_) {
         Initialize();
     }
@@ -91,22 +89,29 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     if (!phrase)
         return;
     string spellingCode = phrase->comment();
+    size_t startPos = spellingCode.find('\f');
+    if (startPos == string::npos)
+        return;
     const string& text = cand->text();
     rime::DictEntryIterator it;
     
-    spellingCode.erase(std::remove(spellingCode.begin(), spellingCode.end(), ' '), spellingCode.end());
-    string queryCode = text + "|" + spellingCode;   // to sperate the jyutping and json temporarily
-    dict_->LookupWords(&it, queryCode, false);
-    if(!it.exhausted())
-    {
-        string dictRes = it.Peek()->text;
-        //comment_formatter_.Apply(&dictRes);
-        if(dictRes.empty())
-        {
-            return;
-        }
-        phrase->set_comment(dictRes);
-    }
+    string jyutping = spellingCode.substr(startPos + 1);
+    boost::remove_erase_if(jyutping, boost::is_any_of(" \f"));
+    std::unordered_set<string> pronunciations;
+    boost::split(pronunciations, jyutping, boost::is_any_of(";"));
+    string result = "";
+    dict_->LookupWords(&it, text, false);
+    do {
+        string line = it.Peek()->text;
+        if (line.empty())
+            continue;
+        string pronunciation = line.substr(0, line.find(','));
+        result += "\r";
+        result += pronunciations.find(pronunciation) != pronunciations.end() ? "1," : "0,";
+        result += line;
+    } while (it.Next());
+    if (!result.empty())
+        phrase->set_comment(spellingCode.substr(0, startPos + 1) + result);
 }
 
 }  // namespace rime

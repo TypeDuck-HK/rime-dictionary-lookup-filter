@@ -8,20 +8,18 @@
 #include <rime/common.h>
 #include <rime/registry.h>
 #include <rime_api.h>
-#include "dictionary_lookup_filter.hpp"
-#include "PhonologyUniquifier.hpp"
+#include "DictionaryLookupFilter.hpp"
 #include <rime/component.h>
 
-static void rime_multi_reverse_lookup_initialize() {
+static void rime_dictionary_lookup_initialize() {
     using namespace rime;
     
     LOG(INFO) << "registering components from module 'dictionary_lookup_filter'.";
     Registry& r = Registry::instance();
     
     r.Register("dictionary_lookup_filter", new Component<DictionaryLookupFilter>);
-    r.Register("phonology_uniquifier", new Component<PhonologyUniquifier>);
 }
 
-static void rime_multi_reverse_lookup_finalize() {}
+static void rime_dictionary_lookup_finalize() {}
 
-RIME_REGISTER_MODULE(multi_reverse_lookup)
+RIME_REGISTER_MODULE(dictionary_lookup)

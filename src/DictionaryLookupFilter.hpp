@@ -38,7 +38,6 @@ protected:
     bool initialized_ = false;
     the<Dictionary> dict_;
     // settings
-    Projection comment_formatter_;
     string dictname_;
 
 };
