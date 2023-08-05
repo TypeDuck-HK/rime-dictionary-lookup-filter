@@ -91,6 +91,8 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     boost::split(pronunciations, jyutping, boost::is_any_of(";"));
     string result = "";
     dict_->LookupWords(&it, text, false);
+    if (it.exhausted())
+        return;
     do {
         string line = it.Peek()->text;
         if (line.empty())
