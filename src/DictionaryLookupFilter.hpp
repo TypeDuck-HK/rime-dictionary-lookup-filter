@@ -20,27 +20,24 @@ namespace rime {
 class Dictionary;
 
 class DictionaryLookupFilter : public Filter, TagMatching {
-public:
+  public:
     explicit DictionaryLookupFilter(const Ticket& ticket);
 
     virtual an<Translation> Apply(an<Translation> translation,
                                   CandidateList* candidates);
 
-    virtual bool AppliesToSegment(Segment* segment) {
-        return TagsMatch(segment);
-    }
+    virtual bool AppliesToSegment(Segment* segment) { return TagsMatch(segment); }
 
     void Process(const an<Candidate>& cand);
-    
-protected:
+
+  protected:
     void Initialize();
-    
+
     bool initialized_ = false;
     the<Dictionary> dict_;
     // settings
     string dictname_;
-
 };
-};
+};  // namespace rime
 
 #endif /* DictionaryLookupFilter_hpp */
