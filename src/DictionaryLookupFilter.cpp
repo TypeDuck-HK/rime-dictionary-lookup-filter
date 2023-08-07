@@ -16,8 +16,10 @@
 #include <rime/gear/translator_commons.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
+#include <boost/range/adaptor/map.hpp>
 #include <algorithm>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace rime {
 
@@ -80,30 +82,74 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
         return;
     string spellingCode = phrase->comment();
     size_t startPos = spellingCode.find('\f');
-    if (startPos == string::npos)
-        return;
-    const string& text = cand->text();
-    rime::DictEntryIterator it;
+    string result;
+    auto sentence = As<Sentence>(phrase);
+    if (sentence) {
+        string entries;
+        std::unordered_map<string, string> word;
+        for (const DictEntry& component : sentence->components()) {
+            string text = component.text;
+            auto it = word.find(text);
+            if (it != word.end()) {
+                result += it->second;
+                continue;
+            }
+            string lines = ParseEntry(text, "", false);
+            if (!lines.empty()) {
+                string pronunciation = lines.substr(lines.find(',') + 1);
+                pronunciation = pronunciation.substr(0, pronunciation.find(','));
+                result += pronunciation;
+                entries += lines;
+                word.insert({text, pronunciation});
+            }
+        }
+        if (!entries.empty())
+            phrase->set_comment(spellingCode.substr(0, startPos + 1) +
+                                "\r1," + result + ",0,,,,composition,,,,,,,,," + entries);
+    } else if (startPos != string::npos) {
+        result = ParseEntry(cand->text(), spellingCode.substr(startPos + 1), true);
+        if (!result.empty())
+            phrase->set_comment(spellingCode.substr(0, startPos + 1) + result);
+    }
+}
 
-    string jyutping = spellingCode.substr(startPos + 1);
-    boost::remove_erase_if(jyutping, boost::is_any_of(" \f"));
+string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bool isNotSentence) {
+    rime::DictEntryIterator it;
     std::unordered_set<string> pronunciations;
-    boost::split(pronunciations, jyutping, boost::is_any_of(";"));
-    string result = "";
+    if (isNotSentence) {
+        boost::remove_erase_if(jyutping, boost::is_any_of("; "));
+        boost::split(pronunciations, jyutping, boost::is_any_of("\f"));
+    }
     dict_->LookupWords(&it, text, false);
     if (it.exhausted())
-        return;
+        return "";
+    std::multimap<int8_t, string> matchedLines, remainingLines;
     do {
         string line = it.Peek()->text;
         if (line.empty())
             continue;
-        string pronunciation = line.substr(0, line.find(','));
-        result += "\r";
-        result += pronunciations.find(pronunciation) != pronunciations.end() ? "1," : "0,";
-        result += line;
+        size_t firstCommaPos = line.find(',');
+        string pronunciation = line.substr(0, firstCommaPos);
+        string pronOrder = line.substr(firstCommaPos + 1);
+        pronOrder = pronOrder.substr(0, pronOrder.find(','));
+        bool match = pronunciations.find(pronunciation) != pronunciations.end();
+        (match ? matchedLines : remainingLines).insert({(int8_t)std::stoi(pronOrder), line});
     } while (it.Next());
-    if (!result.empty())
-        phrase->set_comment(spellingCode.substr(0, startPos + 1) + result);
+    string result;
+    if (isNotSentence && matchedLines.empty() && !remainingLines.empty()) {
+        result += "\r1,";
+        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, "\r1,");
+        return result;
+    }
+    if (!matchedLines.empty()) {
+        result += "\r1,";
+        result += boost::algorithm::join(matchedLines | boost::adaptors::map_values, "\r1,");
+    }
+    if (!remainingLines.empty()) {
+        result += "\r0,";
+        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, "\r0,");
+    }
+    return result;
 }
 
 }  // namespace rime
