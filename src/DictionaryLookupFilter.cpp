@@ -113,13 +113,14 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
             }
         }
         if (!entries.empty())
-            phrase->set_comment(spellingCode.substr(0, startPos + 1) +
-                                "\r1," + cand->text() + "," + result +
+            phrase->set_comment(spellingCode.substr(0, startPos) +
+                                "\f\r1," + cand->text() + "," + result +
                                 ",1,0,,,,composition,,,,,,,,," + entries);
-    } else if (startPos != string::npos) {
-        result = ParseEntry(cand->text(), spellingCode.substr(startPos + 1), true);
+    } else {
+        result = ParseEntry(
+            cand->text(), startPos == string::npos ? "" : spellingCode.substr(startPos + 1), true);
         if (!result.empty())
-            phrase->set_comment(spellingCode.substr(0, startPos + 1) + result);
+            phrase->set_comment(spellingCode.substr(0, startPos) + "\f" + result);
     }
 }
 
