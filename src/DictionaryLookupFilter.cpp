@@ -84,11 +84,19 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     size_t startPos = spellingCode.find('\f');
     string result;
     auto sentence = As<Sentence>(phrase);
+    vector<string> words;
     if (sentence) {
+        const vector<DictEntry>& components = sentence->components();
+        words.resize(components.size());
+        std::transform(
+            components.begin(), components.end(), words.begin(),
+            [](const DictEntry& component) { return component.text; });
+    } else if (auto userDictEntry = dynamic_cast<const UserDictEntry*>(&phrase->entry()))
+        words = userDictEntry->elements;
+    if (!words.empty()) {
         string entries;
         std::unordered_map<string, string> word;
-        for (const DictEntry& component : sentence->components()) {
-            string text = component.text;
+        for (const string& text : words) {
             auto it = word.find(text);
             if (it != word.end()) {
                 result += it->second;
