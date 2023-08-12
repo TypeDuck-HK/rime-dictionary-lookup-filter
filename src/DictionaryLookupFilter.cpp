@@ -97,6 +97,7 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
             string lines = ParseEntry(text, "", false);
             if (!lines.empty()) {
                 string pronunciation = lines.substr(lines.find(',') + 1);
+                pronunciation = pronunciation.substr(pronunciation.find(',') + 1);
                 pronunciation = pronunciation.substr(0, pronunciation.find(','));
                 result += pronunciation;
                 entries += lines;
@@ -105,7 +106,8 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
         }
         if (!entries.empty())
             phrase->set_comment(spellingCode.substr(0, startPos + 1) +
-                                "\r1," + result + ",0,,,,composition,,,,,,,,," + entries);
+                                "\r1," + cand->text() + "," + result +
+                                ",1,0,,,,composition,,,,,,,,," + entries);
     } else if (startPos != string::npos) {
         result = ParseEntry(cand->text(), spellingCode.substr(startPos + 1), true);
         if (!result.empty())
@@ -135,19 +137,20 @@ string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bo
         bool match = pronunciations.find(pronunciation) != pronunciations.end();
         (match ? matchedLines : remainingLines).insert({(int8_t)std::stoi(pronOrder), line});
     } while (it.Next());
-    string result;
+    string result, prefix = "\r1," + text + ",";
     if (isNotSentence && matchedLines.empty() && !remainingLines.empty()) {
-        result += "\r1,";
-        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, "\r1,");
+        result += prefix;
+        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, prefix);
         return result;
     }
     if (!matchedLines.empty()) {
-        result += "\r1,";
-        result += boost::algorithm::join(matchedLines | boost::adaptors::map_values, "\r1,");
+        result += prefix;
+        result += boost::algorithm::join(matchedLines | boost::adaptors::map_values, prefix);
     }
     if (!remainingLines.empty()) {
-        result += "\r0,";
-        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, "\r0,");
+        prefix[1] = '0';
+        result += prefix;
+        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, prefix);
     }
     return result;
 }
