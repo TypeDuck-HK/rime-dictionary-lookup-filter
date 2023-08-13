@@ -79,9 +79,15 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     auto phrase = As<Phrase>(Candidate::GetGenuineCandidate(cand));
     if (!phrase)
         return;
-    string spellingCode = phrase->comment();
-    size_t startPos = spellingCode.find('\f');
-    string result;
+    const string spellingCode = phrase->comment();
+    const size_t startPos = spellingCode.find('\f');
+    const string prefix = spellingCode.substr(0, startPos);
+    string result = ParseEntry(
+        cand->text(), startPos == string::npos ? "" : spellingCode.substr(startPos + 1), true);
+    if (!result.empty()) {
+        phrase->set_comment(prefix + "\f" + result);
+        return;
+    }
     auto sentence = As<Sentence>(phrase);
     vector<string> words;
     if (sentence) {
@@ -112,14 +118,8 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
             }
         }
         if (!entries.empty())
-            phrase->set_comment(spellingCode.substr(0, startPos) +
-                                "\f\r1," + cand->text() + "," + result +
+            phrase->set_comment(prefix + "\f\r1," + cand->text() + "," + result +
                                 ",1,0,,,,composition,,,,,,,,," + entries);
-    } else {
-        result = ParseEntry(
-            cand->text(), startPos == string::npos ? "" : spellingCode.substr(startPos + 1), true);
-        if (!result.empty())
-            phrase->set_comment(spellingCode.substr(0, startPos) + "\f" + result);
     }
 }
 
