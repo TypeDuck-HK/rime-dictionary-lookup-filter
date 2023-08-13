@@ -16,7 +16,6 @@
 #include <rime/gear/translator_commons.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
-#include <boost/range/adaptor/map.hpp>
 #include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
@@ -125,7 +124,7 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
 }
 
 string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bool isNotSentence) {
-    rime::DictEntryIterator it;
+    DictEntryIterator it;
     std::unordered_set<string> pronunciations;
     if (isNotSentence) {
         boost::remove_erase_if(jyutping, boost::is_any_of("; "));
@@ -136,31 +135,24 @@ string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bo
         return "";
     std::multimap<int8_t, string> matchedLines, remainingLines;
     do {
-        string line = it.Peek()->text;
+        const string line = it.Peek()->text;
         if (line.empty())
             continue;
-        size_t firstCommaPos = line.find(',');
-        string pronunciation = line.substr(0, firstCommaPos);
+        const size_t firstCommaPos = line.find(',');
+        const string pronunciation = line.substr(0, firstCommaPos);
         string pronOrder = line.substr(firstCommaPos + 1);
         pronOrder = pronOrder.substr(0, pronOrder.find(','));
-        bool match = pronunciations.find(pronunciation) != pronunciations.end();
+        const bool match = pronunciations.find(pronunciation) != pronunciations.end();
         (match ? matchedLines : remainingLines).insert({(int8_t)std::stoi(pronOrder), line});
     } while (it.Next());
     string result, prefix = "\r1," + text + ",";
-    if (isNotSentence && matchedLines.empty() && !remainingLines.empty()) {
-        result += prefix;
-        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, prefix);
-        return result;
-    }
-    if (!matchedLines.empty()) {
-        result += prefix;
-        result += boost::algorithm::join(matchedLines | boost::adaptors::map_values, prefix);
-    }
-    if (!remainingLines.empty()) {
+    if (!isNotSentence || !matchedLines.empty() || remainingLines.empty()) {
+        for (const pair<int8_t, string>& line : matchedLines)
+            result += prefix + line.second;
         prefix[1] = '0';
-        result += prefix;
-        result += boost::algorithm::join(remainingLines | boost::adaptors::map_values, prefix);
     }
+    for (const pair<int8_t, string>& line : remainingLines)
+        result += prefix + line.second;
     return result;
 }
 
