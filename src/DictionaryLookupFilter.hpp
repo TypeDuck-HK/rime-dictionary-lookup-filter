@@ -32,7 +32,7 @@ class DictionaryLookupFilter : public Filter, TagMatching {
 
   protected:
     void Initialize();
-    string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bool isNotSentence);
+    string ParseEntry(string text, string jyutping, const bool isNotSentence);
 
     bool initialized_ = false;
     the<Dictionary> dict_;
