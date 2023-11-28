@@ -14,6 +14,7 @@
 #include <rime/dict/reverse_lookup_dictionary.h>
 #include <rime/dict/dictionary.h>
 #include <rime/gear/translator_commons.h>
+#include <rime/gear/script_translator.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <algorithm>
@@ -73,6 +74,29 @@ an<Translation> DictionaryLookupFilter::Apply(an<Translation> translation,
     return New<DictionaryLookupFilterTranslation>(translation, this);
 }
 
+bool DictionaryLookupFilter::GetWordsFromUserDictEntry(
+    const DictEntry* entry,
+    vector<pair<string, string>>& words,
+    Dictionary* dictionary) {
+    bool success = false;
+    if (auto user_dict_entry = dynamic_cast<const UserDictEntry*>(entry)) {
+        vector<string> syllables;
+        if (dictionary->Decode(user_dict_entry->code, &syllables)) {
+            size_t i = 0;
+            for (const string& element : user_dict_entry->elements) {
+                string pronunciation;
+                for (const char* p = element.c_str(); *p; ++p) {
+                    if ((*p & 0xc0) != 0x80 && i < syllables.size())
+                        pronunciation += syllables[i++];
+                }
+                words.push_back({element, pronunciation});
+                success = true;
+            }
+        }
+    }
+    return success;
+}
+
 void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     if (dict_ == nullptr)
         return;
@@ -83,38 +107,47 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     const size_t startPos = spellingCode.find('\f');
     const string prefix = spellingCode.substr(0, startPos);
     string result = ParseEntry(
-        cand->text(), startPos == string::npos ? "" : spellingCode.substr(startPos + 1), true);
+        cand->text(),
+        startPos == string::npos ? "" : spellingCode.substr(startPos + 1),
+        false);
     if (!result.empty()) {
         phrase->set_comment(prefix + "\f" + result);
         return;
     }
-    auto sentence = As<Sentence>(phrase);
-    vector<string> words;
-    if (sentence) {
-        const vector<DictEntry>& components = sentence->components();
-        words.resize(components.size());
-        std::transform(
-            components.begin(), components.end(), words.begin(),
-            [](const DictEntry& component) { return component.text; });
-    } else if (auto userDictEntry = dynamic_cast<const UserDictEntry*>(&phrase->entry()))
-        words = userDictEntry->elements;
+    Dictionary* dictionary = nullptr;
+    if (auto syllabifier = As<ScriptSyllabifier>(phrase->syllabifier()))
+        dictionary = syllabifier->translator()->dict();
+    vector<pair<string, string>> words;
+    if (auto sentence = As<Sentence>(phrase)) {
+        const vector<const DictEntry*>& components = sentence->components();
+        for (const DictEntry* entry : components) {
+            if (!GetWordsFromUserDictEntry(entry, words, dictionary)) {
+                string pronunciation;
+                if (!entry->comment.empty()) {
+                    pronunciation = entry->comment;
+                    const size_t pos = pronunciation.find('\f');
+                    if (pos != string::npos)
+                        pronunciation = pronunciation.substr(pos + 1);
+                    boost::remove_erase_if(pronunciation, boost::is_any_of("; "));
+                    pronunciation = pronunciation.substr(0, pronunciation.find('\f'));
+                } else if (dictionary) {
+                    vector<string> syllables;
+                    if (dictionary->Decode(entry->code, &syllables))
+                        pronunciation = boost::join(syllables, "");
+                }
+                words.push_back({entry->text, pronunciation});
+            }
+        }
+    } else
+        GetWordsFromUserDictEntry(&phrase->entry(), words, dictionary);
     if (!words.empty()) {
         string entries;
-        std::unordered_map<string, string> word;
-        for (const string& text : words) {
-            auto it = word.find(text);
-            if (it != word.end()) {
-                result += it->second;
-                continue;
-            }
-            string lines = ParseEntry(text, "", false);
-            if (!lines.empty()) {
-                string pronunciation = lines.substr(lines.find(',') + 1);
-                pronunciation = pronunciation.substr(pronunciation.find(',') + 1);
-                pronunciation = pronunciation.substr(0, pronunciation.find(','));
-                result += pronunciation;
-                entries += lines;
-                word.insert({text, pronunciation});
+        std::unordered_set<string> cache;
+        for (pair<string, string>& word : words) {
+            result += word.second;
+            if (cache.find(word.first) == cache.end()) {
+              entries += ParseEntry(word.first, word.second, true);
+              cache.insert(word.first);
             }
         }
         if (!entries.empty())
@@ -123,13 +156,11 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     }
 }
 
-string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bool isNotSentence) {
+string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bool isSentence) {
     DictEntryIterator it;
     std::unordered_set<string> pronunciations;
-    if (isNotSentence) {
-        boost::remove_erase_if(jyutping, boost::is_any_of("; "));
-        boost::split(pronunciations, jyutping, boost::is_any_of("\f"));
-    }
+    boost::remove_erase_if(jyutping, boost::is_any_of("; "));
+    boost::split(pronunciations, jyutping, boost::is_any_of("\f"));
     dict_->LookupWords(&it, text, false);
     if (it.exhausted())
         return "";
@@ -146,7 +177,7 @@ string DictionaryLookupFilter::ParseEntry(string text, string jyutping, const bo
         (match ? matchedLines : remainingLines).insert({(int8_t)std::stoi(pronOrder), line});
     } while (it.Next());
     string result, prefix = "\r1," + text + ",";
-    if (!isNotSentence || !matchedLines.empty() || remainingLines.empty()) {
+    if (isSentence || !matchedLines.empty() || remainingLines.empty()) {
         for (const pair<int8_t, string>& line : matchedLines)
             result += prefix + line.second;
         prefix[1] = '0';
