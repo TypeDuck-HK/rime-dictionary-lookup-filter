@@ -75,15 +75,15 @@ an<Translation> DictionaryLookupFilter::Apply(an<Translation> translation,
 }
 
 bool DictionaryLookupFilter::GetWordsFromUserDictEntry(
-    const DictEntry* entry,
+    const DictEntry entry,
     vector<pair<string, string>>& words,
     Dictionary* dictionary) {
     bool success = false;
-    if (auto user_dict_entry = dynamic_cast<const UserDictEntry*>(entry)) {
+    if (!entry.elements.empty()) {
         vector<string> syllables;
-        if (dictionary->Decode(user_dict_entry->code, &syllables)) {
+        if (dictionary->Decode(entry.code, &syllables)) {
             size_t i = 0;
-            for (const string& element : user_dict_entry->elements) {
+            for (const string& element : entry.elements) {
                 string pronunciation;
                 for (const char* p = element.c_str(); *p; ++p) {
                     if ((*p & 0xc0) != 0x80 && i < syllables.size())
@@ -119,12 +119,12 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
         dictionary = syllabifier->translator()->dict();
     vector<pair<string, string>> words;
     if (auto sentence = As<Sentence>(phrase)) {
-        const vector<const DictEntry*>& components = sentence->components();
-        for (const DictEntry* entry : components) {
+        const vector<DictEntry>& components = sentence->components();
+        for (const DictEntry entry : components) {
             if (!GetWordsFromUserDictEntry(entry, words, dictionary)) {
                 string pronunciation;
-                if (!entry->comment.empty()) {
-                    pronunciation = entry->comment;
+                if (!entry.comment.empty()) {
+                    pronunciation = entry.comment;
                     const size_t pos = pronunciation.find('\f');
                     if (pos != string::npos)
                         pronunciation = pronunciation.substr(pos + 1);
@@ -132,14 +132,14 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
                     pronunciation = pronunciation.substr(0, pronunciation.find('\f'));
                 } else if (dictionary) {
                     vector<string> syllables;
-                    if (dictionary->Decode(entry->code, &syllables))
+                    if (dictionary->Decode(entry.code, &syllables))
                         pronunciation = boost::join(syllables, "");
                 }
-                words.push_back({entry->text, pronunciation});
+                words.push_back({entry.text, pronunciation});
             }
         }
     } else
-        GetWordsFromUserDictEntry(&phrase->entry(), words, dictionary);
+        GetWordsFromUserDictEntry(phrase->entry(), words, dictionary);
     if (!words.empty()) {
         string entries;
         std::unordered_set<string> cache;
