@@ -35,7 +35,7 @@ class DictionaryLookupFilter : public Filter, TagMatching {
     bool GetWordsFromUserDictEntry(const DictEntry entry,
                                    vector<pair<string, string>>& words,
                                    Dictionary* dictionary);
-    string ParseEntry(string text, string jyutping, const bool isNotSentence);
+    string ParseEntry(string text, string jyutping, const bool isSentence);
 
     bool initialized_ = false;
     the<Dictionary> dict_;
