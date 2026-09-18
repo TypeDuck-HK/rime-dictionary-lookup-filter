@@ -72,13 +72,11 @@ size_t ColumnStart(const string& line, const size_t column) {
     return pos;
 }
 
-string OutputTailWithoutPronOrder(const string& rawLine,
-                                  const vector<string>& columns) {
-    vector<string> outputColumns;
-    for (size_t i = 3; i <= 6; ++i)
-        outputColumns.push_back(i < columns.size() ? columns[i] : "");
-
-    string tail = boost::join(outputColumns, ",");
+string OutputTailWithoutComponentsAndPronOrder(
+    const string& rawLine,
+    const vector<string>& columns) {
+    string tail = (columns.size() > 3 ? columns[3] : "") + "," +
+                  (columns.size() > 4 ? columns[4] : "");
     const size_t start = ColumnStart(rawLine, 8);
     if (start != string::npos)
         tail += "," + rawLine.substr(start);
@@ -94,7 +92,7 @@ LookupLine MakeLookupLine(const string& honzi,
         columns,
         columns.size() > 1 && !columns[1].empty() ? columns[1] : honzi,
         columns.size() > 2 && !columns[2].empty() ? columns[2] : columns[0],
-        OutputTailWithoutPronOrder(rawLine, columns),
+        OutputTailWithoutComponentsAndPronOrder(rawLine, columns),
     };
 }
 
@@ -294,11 +292,11 @@ string ParseEntry(Dictionary* dictionary,
     //   synthetic rows.
     // - Unmatched canonical rows are kept with 0; unmatched noncanonical rows
     //   are kept only through their 0 canonical redirects.
-    // - Deduplication ignores match_input_buffer and pronOrder, keeps the last
-    //   collected position within each group, and lets the 1 group win over the
-    //   0 group.
-    // - pronOrder is not emitted; it only sorts within one honzi lookup.
-    //   Related canonical/component lookups keep discovery order across honzi.
+    // - Deduplication ignores match_input_buffer, components, and pronOrder,
+    //   keeps the last collected position within each group, and lets the 1
+    //   group win over the 0 group.
+    // - Components and pronOrder are not emitted. pronOrder only sorts within
+    //   one honzi lookup; related lookups keep discovery order across honzi.
     vector<EmittedLine> candidateAndDictionaryRows, dictionaryOnlyRows;
     std::unordered_set<string> matchedPronunciations;
     for (const pair<int, LookupLine>& line : matchedLines) {
@@ -465,7 +463,7 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
             }
         }
         phrase->set_comment(prefix + "\f\r1," + cand->text() + "," + result +
-                            ",,,,,,,,,composition,,,,,,,," + entries);
+                            ",,,,,,,composition,,,,,,,," + entries);
     }
 }
 
