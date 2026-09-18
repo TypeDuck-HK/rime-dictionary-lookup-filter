@@ -268,10 +268,14 @@ string ParseEntry(Dictionary* dictionary,
         return "";
     activeLookups.insert(lookupKey);
 
-    std::unordered_set<string> pronunciations;
-    boost::split(pronunciations, jyutping, boost::is_any_of("\f"));
+    vector<string> pronunciationList;
+    boost::split(pronunciationList, jyutping, boost::is_any_of("\f"));
+    std::unordered_set<string> pronunciations(pronunciationList.begin(),
+                                              pronunciationList.end());
     OrderedLookupLines matchedLines, remainingLines;
-    if (!LookupLines(dictionary, honzi, pronunciations, matchedLines, remainingLines)) {
+    const bool hasDictionaryRows =
+        LookupLines(dictionary, honzi, pronunciations, matchedLines, remainingLines);
+    if (!hasDictionaryRows && isSentence) {
         activeLookups.erase(lookupKey);
         return "";
     }
@@ -280,34 +284,41 @@ string ParseEntry(Dictionary* dictionary,
     // - Direct pronunciation matches and their component entries use
     //   match_input_buffer=1, so they appear in both candidate selection and
     //   dictionary panels.
+    // - For an outer non-sentence lookup, each input pronunciation without an
+    //   exact dictionary row gets a synthetic 1 row containing only honzi and
+    //   jyutping. Unrelated real rows never become candidate-panel fallbacks.
     // - Canonical redirects use match_input_buffer=0 even when collected while
     //   building the 1 group. Empty canonical columns mean the row is already
     //   canonical.
-    // - If there are no direct matches for a non-sentence lookup, unmatched
-    //   dictionary rows and their related entries are used as the fallback 1 group.
-    // - If direct matches exist, unmatched canonical rows are kept with 0;
-    //   unmatched noncanonical rows are kept only through their 0 canonical
-    //   redirects.
+    // - Component/sentence lookups remain exact-match-only and never get
+    //   synthetic rows.
+    // - Unmatched canonical rows are kept with 0; unmatched noncanonical rows
+    //   are kept only through their 0 canonical redirects.
     // - Deduplication ignores match_input_buffer and pronOrder, keeps the last
     //   collected position within each group, and lets the 1 group win over the
     //   0 group.
     // - pronOrder is not emitted; it only sorts within one honzi lookup.
     //   Related canonical/component lookups keep discovery order across honzi.
     vector<EmittedLine> candidateAndDictionaryRows, dictionaryOnlyRows;
-    const bool hasOnlyUnmatchedWordEntries =
-        !isSentence && matchedLines.empty() && !remainingLines.empty();
-    if (hasOnlyUnmatchedWordEntries) {
-        for (const pair<int, LookupLine>& line : remainingLines)
-            AppendLineWithRelatedEntries(dictionary, candidateAndDictionaryRows, line.second,
-                                         '1', '1', true, activeLookups);
-    } else {
-        for (const pair<int, LookupLine>& line : matchedLines)
-            AppendLineWithRelatedEntries(dictionary, candidateAndDictionaryRows, line.second,
-                                         '1', '1', true, activeLookups);
-        for (const pair<int, LookupLine>& line : remainingLines)
-            AppendCanonicalEntryOrRedirect(dictionary, dictionaryOnlyRows, line.second,
-                                           '0', '0', false, activeLookups);
+    std::unordered_set<string> matchedPronunciations;
+    for (const pair<int, LookupLine>& line : matchedLines) {
+        matchedPronunciations.insert(line.second.columns[0]);
+        AppendLineWithRelatedEntries(dictionary, candidateAndDictionaryRows, line.second,
+                                     '1', '1', true, activeLookups);
     }
+    if (!isSentence) {
+        for (const string& pronunciation : pronunciationList) {
+            if (pronunciation.empty() ||
+                matchedPronunciations.find(pronunciation) != matchedPronunciations.end())
+                continue;
+            const string row = "\r1," + honzi + "," + pronunciation;
+            candidateAndDictionaryRows.push_back(
+                {row, honzi + "," + pronunciation});
+        }
+    }
+    for (const pair<int, LookupLine>& line : remainingLines)
+        AppendCanonicalEntryOrRedirect(dictionary, dictionaryOnlyRows, line.second,
+                                       '0', '0', false, activeLookups);
 
     candidateAndDictionaryRows = DeduplicateRows(candidateAndDictionaryRows);
     std::unordered_set<string> insertedKeys;
@@ -453,9 +464,8 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
               cache.insert(word.first);
             }
         }
-        if (!entries.empty())
-            phrase->set_comment(prefix + "\f\r1," + cand->text() + "," + result +
-                                ",,,,,,,,,composition,,,,,,,," + entries);
+        phrase->set_comment(prefix + "\f\r1," + cand->text() + "," + result +
+                            ",,,,,,,,,composition,,,,,,,," + entries);
     }
 }
 
