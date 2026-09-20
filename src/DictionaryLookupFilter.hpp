@@ -32,14 +32,11 @@ class DictionaryLookupFilter : public Filter, TagMatching {
 
   protected:
     void Initialize();
+    bool GetWordsFromPhrase(const an<Phrase>& phrase,
+                            vector<pair<string, string>>& words);
     bool GetWordsFromUserDictEntry(const DictEntry entry,
                                    vector<pair<string, string>>& words,
                                    Dictionary* dictionary);
-    string ParseEntry(string honzi,
-                      string jyutping,
-                      const bool isSentence,
-                      bool* hasNonSyntheticCandidateRows = nullptr,
-                      string* dictionaryOnlyResult = nullptr);
 
     bool initialized_ = false;
     the<Dictionary> dict_;

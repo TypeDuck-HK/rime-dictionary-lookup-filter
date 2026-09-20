@@ -149,13 +149,14 @@ bool LookupLines(Dictionary* dictionary,
     return true;
 }
 
-vector<EmittedLine> CollectMatchedRows(Dictionary* dictionary,
-                                       string honzi,
-                                       string jyutping,
-                                       const char matchInputBuffer,
-                                       const char componentMatchInputBuffer,
-                                       const bool includeComponentEntries,
-                                       std::unordered_set<string>& activeLookups);
+void CollectMatchedRows(Dictionary* dictionary,
+                        vector<EmittedLine>& rows,
+                        string honzi,
+                        string jyutping,
+                        const char matchInputBuffer,
+                        const char componentMatchInputBuffer,
+                        const bool includeComponentEntries,
+                        std::unordered_set<string>& activeLookups);
 
 void AppendCanonicalRedirects(Dictionary* dictionary,
                               vector<EmittedLine>& rows,
@@ -171,10 +172,9 @@ void AppendCanonicalRedirects(Dictionary* dictionary,
         line.columns[3].empty() ? line.lookupHonzi : line.columns[3];
     const string canonicalJyutping =
         line.columns[4].empty() ? line.columns[0] : line.columns[4];
-    vector<EmittedLine> canonicalRows = CollectMatchedRows(
-        dictionary, canonicalHonzi, canonicalJyutping, '0',
+    CollectMatchedRows(
+        dictionary, rows, canonicalHonzi, canonicalJyutping, '0',
         componentMatchInputBuffer, includeComponentEntries, activeLookups);
-    rows.insert(rows.end(), canonicalRows.begin(), canonicalRows.end());
 }
 
 void AppendCanonicalEntryOrRedirect(Dictionary* dictionary,
@@ -217,25 +217,25 @@ void AppendLineWithRelatedEntries(Dictionary* dictionary,
     for (size_t i = 0; i < componentTexts.size() && i < componentJyutpings.size(); ++i) {
         if (componentTexts[i].empty() || componentJyutpings[i].empty())
             continue;
-        vector<EmittedLine> componentRows = CollectMatchedRows(
-            dictionary, componentTexts[i], componentJyutpings[i],
+        CollectMatchedRows(
+            dictionary, rows, componentTexts[i], componentJyutpings[i],
             componentMatchInputBuffer, componentMatchInputBuffer,
             includeComponentEntries, activeLookups);
-        rows.insert(rows.end(), componentRows.begin(), componentRows.end());
     }
 }
 
-vector<EmittedLine> CollectMatchedRows(Dictionary* dictionary,
-                                       string honzi,
-                                       string jyutping,
-                                       const char matchInputBuffer,
-                                       const char componentMatchInputBuffer,
-                                       const bool includeComponentEntries,
-                                       std::unordered_set<string>& activeLookups) {
+void CollectMatchedRows(Dictionary* dictionary,
+                        vector<EmittedLine>& rows,
+                        string honzi,
+                        string jyutping,
+                        const char matchInputBuffer,
+                        const char componentMatchInputBuffer,
+                        const bool includeComponentEntries,
+                        std::unordered_set<string>& activeLookups) {
     boost::remove_erase_if(jyutping, boost::is_any_of("; "));
     const string lookupKey = honzi + "\f" + jyutping;
     if (activeLookups.find(lookupKey) != activeLookups.end())
-        return {};
+        return;
     activeLookups.insert(lookupKey);
 
     std::unordered_set<string> pronunciations;
@@ -243,105 +243,14 @@ vector<EmittedLine> CollectMatchedRows(Dictionary* dictionary,
     OrderedLookupLines matchedLines, remainingLines;
     if (!LookupLines(dictionary, honzi, pronunciations, matchedLines, remainingLines)) {
         activeLookups.erase(lookupKey);
-        return {};
+        return;
     }
 
-    vector<EmittedLine> rows;
     for (const pair<int, LookupLine>& line : matchedLines)
         AppendLineWithRelatedEntries(dictionary, rows, line.second,
                                      matchInputBuffer, componentMatchInputBuffer,
                                      includeComponentEntries, activeLookups);
     activeLookups.erase(lookupKey);
-    return rows;
-}
-
-string ParseEntry(Dictionary* dictionary,
-                  string honzi,
-                  string jyutping,
-                  const bool isSentence,
-                  bool* hasNonSyntheticCandidateRows,
-                  string* dictionaryOnlyResult,
-                  std::unordered_set<string>& activeLookups) {
-    if (hasNonSyntheticCandidateRows)
-        *hasNonSyntheticCandidateRows = false;
-    if (dictionaryOnlyResult)
-        dictionaryOnlyResult->clear();
-    boost::remove_erase_if(jyutping, boost::is_any_of("; "));
-    const string lookupKey = honzi + "\f" + jyutping;
-    if (activeLookups.find(lookupKey) != activeLookups.end())
-        return "";
-    activeLookups.insert(lookupKey);
-
-    vector<string> pronunciationList;
-    boost::split(pronunciationList, jyutping, boost::is_any_of("\f"));
-    std::unordered_set<string> pronunciations(pronunciationList.begin(),
-                                              pronunciationList.end());
-    OrderedLookupLines matchedLines, remainingLines;
-    const bool hasDictionaryRows =
-        LookupLines(dictionary, honzi, pronunciations, matchedLines, remainingLines);
-    if (!hasDictionaryRows && isSentence) {
-        activeLookups.erase(lookupKey);
-        return "";
-    }
-
-    // Emission rules:
-    // - Direct pronunciation matches and their component entries use
-    //   match_input_buffer=1, so they appear in both candidate selection and
-    //   dictionary panels.
-    // - For an outer non-sentence lookup, each input pronunciation without an
-    //   exact dictionary row gets a synthetic 1 row containing only honzi and
-    //   jyutping. Unrelated real rows never become candidate-panel fallbacks.
-    // - Canonical redirects use match_input_buffer=0 even when collected while
-    //   building the 1 group. Empty canonical columns mean the row is already
-    //   canonical.
-    // - Component/sentence lookups remain exact-match-only and never get
-    //   synthetic rows.
-    // - Unmatched canonical rows are kept with 0; unmatched noncanonical rows
-    //   are kept only through their 0 canonical redirects.
-    // - Deduplication ignores match_input_buffer, components, and pronOrder,
-    //   keeps the last collected position within each group, and lets the 1
-    //   group win over the 0 group.
-    // - Components and pronOrder are not emitted. pronOrder only sorts within
-    //   one honzi lookup; related lookups keep discovery order across honzi.
-    vector<EmittedLine> candidateAndDictionaryRows, dictionaryOnlyRows;
-    std::unordered_set<string> matchedPronunciations;
-    for (const pair<int, LookupLine>& line : matchedLines) {
-        matchedPronunciations.insert(line.second.columns[0]);
-        AppendLineWithRelatedEntries(dictionary, candidateAndDictionaryRows, line.second,
-                                     '1', '1', true, activeLookups);
-    }
-    if (!isSentence) {
-        for (const string& pronunciation : pronunciationList) {
-            if (pronunciation.empty() ||
-                matchedPronunciations.find(pronunciation) != matchedPronunciations.end())
-                continue;
-            const string row = "\r1," + honzi + "," + pronunciation;
-            candidateAndDictionaryRows.push_back(
-                {row, honzi + "," + pronunciation});
-        }
-    }
-    for (const pair<int, LookupLine>& line : remainingLines)
-        AppendCanonicalEntryOrRedirect(dictionary, dictionaryOnlyRows, line.second,
-                                       '0', '0', false, activeLookups);
-
-    candidateAndDictionaryRows = DeduplicateRows(candidateAndDictionaryRows);
-    std::unordered_set<string> insertedKeys;
-    for (const EmittedLine& line : candidateAndDictionaryRows)
-        insertedKeys.insert(line.dedupeKey);
-    dictionaryOnlyRows = DeduplicateRows(dictionaryOnlyRows, &insertedKeys);
-
-    if (hasNonSyntheticCandidateRows)
-        *hasNonSyntheticCandidateRows = !matchedLines.empty();
-    string result;
-    for (const EmittedLine& line : candidateAndDictionaryRows)
-        result += line.commentLine;
-    for (const EmittedLine& line : dictionaryOnlyRows) {
-        result += line.commentLine;
-        if (dictionaryOnlyResult)
-            *dictionaryOnlyResult += line.commentLine;
-    }
-    activeLookups.erase(lookupKey);
-    return result;
 }
 
 }  // namespace
@@ -397,6 +306,39 @@ an<Translation> DictionaryLookupFilter::Apply(an<Translation> translation,
     return New<DictionaryLookupFilterTranslation>(translation, this);
 }
 
+bool DictionaryLookupFilter::GetWordsFromPhrase(
+    const an<Phrase>& phrase,
+    vector<pair<string, string>>& words) {
+    Dictionary* dictionary = nullptr;
+    if (auto syllabifier = As<ScriptSyllabifier>(phrase->syllabifier()))
+        dictionary = syllabifier->translator()->dict();
+
+    words.clear();
+    if (auto sentence = As<Sentence>(phrase)) {
+        const vector<DictEntry>& components = sentence->components();
+        for (const DictEntry entry : components) {
+            if (!GetWordsFromUserDictEntry(entry, words, dictionary)) {
+                string pronunciation;
+                if (!entry.comment.empty()) {
+                    pronunciation = entry.comment;
+                    const size_t pos = pronunciation.find('\f');
+                    if (pos != string::npos)
+                        pronunciation = pronunciation.substr(pos + 1);
+                    boost::remove_erase_if(pronunciation, boost::is_any_of("; "));
+                    pronunciation = pronunciation.substr(0, pronunciation.find('\f'));
+                } else if (dictionary) {
+                    vector<string> syllables;
+                    if (dictionary->Decode(entry.code, &syllables))
+                        pronunciation = boost::join(syllables, "");
+                }
+                words.push_back({entry.text, pronunciation});
+            }
+        }
+    } else
+        GetWordsFromUserDictEntry(phrase->entry(), words, dictionary);
+    return !words.empty();
+}
+
 bool DictionaryLookupFilter::GetWordsFromUserDictEntry(
     const DictEntry entry,
     vector<pair<string, string>>& words,
@@ -429,75 +371,90 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     const string spellingCode = phrase->comment();
     const size_t startPos = spellingCode.find('\f');
     const string prefix = spellingCode.substr(0, startPos);
-    bool hasNonSyntheticCandidateRows = false;
-    string dictionaryOnlyResult;
-    string result = ParseEntry(
-        cand->text(),
-        startPos == string::npos ? "" : spellingCode.substr(startPos + 1),
-        false,
-        &hasNonSyntheticCandidateRows,
-        &dictionaryOnlyResult);
-    // Synthetic 1 rows keep the candidate usable, but do not prevent recovery
-    // of a composition and its component entries from the IME.
-    if (hasNonSyntheticCandidateRows) {
-        phrase->set_comment(prefix + "\f" + result);
-        return;
-    }
-    Dictionary* dictionary = nullptr;
-    if (auto syllabifier = As<ScriptSyllabifier>(phrase->syllabifier()))
-        dictionary = syllabifier->translator()->dict();
-    vector<pair<string, string>> words;
-    if (auto sentence = As<Sentence>(phrase)) {
-        const vector<DictEntry>& components = sentence->components();
-        for (const DictEntry entry : components) {
-            if (!GetWordsFromUserDictEntry(entry, words, dictionary)) {
-                string pronunciation;
-                if (!entry.comment.empty()) {
-                    pronunciation = entry.comment;
-                    const size_t pos = pronunciation.find('\f');
-                    if (pos != string::npos)
-                        pronunciation = pronunciation.substr(pos + 1);
-                    boost::remove_erase_if(pronunciation, boost::is_any_of("; "));
-                    pronunciation = pronunciation.substr(0, pronunciation.find('\f'));
-                } else if (dictionary) {
-                    vector<string> syllables;
-                    if (dictionary->Decode(entry.code, &syllables))
-                        pronunciation = boost::join(syllables, "");
-                }
-                words.push_back({entry.text, pronunciation});
-            }
-        }
-    } else
-        GetWordsFromUserDictEntry(phrase->entry(), words, dictionary);
-    if (!words.empty()) {
-        string compositionJyutping, entries;
-        std::unordered_set<string> cache;
-        for (pair<string, string>& word : words) {
-            compositionJyutping += word.second;
-            if (cache.find(word.first) == cache.end()) {
-              entries += ParseEntry(word.first, word.second, true);
-              cache.insert(word.first);
-            }
-        }
-        phrase->set_comment(prefix + "\f\r1," + cand->text() + "," +
-                            compositionJyutping +
-                            ",,,,,,,composition,,,,,,,," + entries +
-                            dictionaryOnlyResult);
-    } else if (!result.empty()) {
-        phrase->set_comment(prefix + "\f" + result);
-    }
-}
+    const string honzi = cand->text();
+    string jyutping =
+        startPos == string::npos ? "" : spellingCode.substr(startPos + 1);
+    boost::remove_erase_if(jyutping, boost::is_any_of("; "));
 
-string DictionaryLookupFilter::ParseEntry(
-    string honzi,
-    string jyutping,
-    const bool isSentence,
-    bool* hasNonSyntheticCandidateRows,
-    string* dictionaryOnlyResult) {
-    std::unordered_set<string> activeLookups;
-    return rime::ParseEntry(dict_.get(), honzi, jyutping, isSentence,
-                            hasNonSyntheticCandidateRows, dictionaryOnlyResult,
-                            activeLookups);
+    vector<string> pronunciationList;
+    boost::split(pronunciationList, jyutping, boost::is_any_of("\f"));
+    std::unordered_set<string> pronunciations(pronunciationList.begin(),
+                                              pronunciationList.end());
+    OrderedLookupLines matchedLines, remainingLines;
+    LookupLines(dict_.get(), honzi, pronunciations, matchedLines, remainingLines);
+
+    // Emission rules:
+    // - "(Exact) match" = row matching honzi and any jyutping from comment/dictionary;
+    //   "unmatched row" = row matching honzi but not any jyutping.
+    // - Exact outer matches and their components form the primary group and use
+    //   match_input_buffer=1, so they appear in both candidate selection and dictionary
+    //   panels. Canonical redirects use match_input_buffer=0 (dictionary panel only)
+    //   even when collected in the primary group. Unmatched canonical rows and
+    //   redirects from unmatched noncanonical rows form the secondary group and use
+    //   match_input_buffer=0; unmatched noncanonical rows themselves are not emitted.
+    // - Each missing outer pronunciation gets a synthetic primary row with
+    //   match_input_buffer=1. If there is no exact outer match, an available IME
+    //   composition replaces those synthetic rows with a composition row and
+    //   recursively matched component rows.
+    // - Component columns and pronOrder are omitted from output and dedupe keys;
+    //   pronOrder only sorts rows within the same honzi.
+    // - Dedupe ignores match_input_buffer, keeps the **last** position within each
+    //   group, and lets primary-group keys suppress matching secondary rows.
+    vector<EmittedLine> candidateAndDictionaryRows, dictionaryOnlyRows;
+    std::unordered_set<string> activeLookups{honzi + "\f" + jyutping};
+    std::unordered_set<string> matchedPronunciations;
+    for (const pair<int, LookupLine>& line : matchedLines) {
+        matchedPronunciations.insert(line.second.columns[0]);
+        AppendLineWithRelatedEntries(dict_.get(), candidateAndDictionaryRows,
+                                     line.second, '1', '1', true,
+                                     activeLookups);
+    }
+
+    vector<pair<string, string>> words;
+    if (matchedLines.empty() && GetWordsFromPhrase(phrase, words)) {
+        string compositionJyutping;
+        for (const pair<string, string>& word : words)
+            compositionJyutping += word.second;
+        const string compositionTail = ",,,,,,,composition,,,,,,,,";
+        candidateAndDictionaryRows.push_back({
+            "\r1," + honzi + "," + compositionJyutping + compositionTail,
+            honzi + "," + compositionJyutping + compositionTail,
+        });
+        for (const pair<string, string>& word : words)
+            CollectMatchedRows(
+                dict_.get(), candidateAndDictionaryRows,
+                word.first, word.second,
+                '1', '1', true, activeLookups);
+    } else {
+        for (const string& pronunciation : pronunciationList) {
+            if (pronunciation.empty() ||
+                matchedPronunciations.find(pronunciation) != matchedPronunciations.end())
+                continue;
+            candidateAndDictionaryRows.push_back({
+                "\r1," + honzi + "," + pronunciation,
+                honzi + "," + pronunciation,
+            });
+        }
+    }
+
+    for (const pair<int, LookupLine>& line : remainingLines)
+        AppendCanonicalEntryOrRedirect(dict_.get(), dictionaryOnlyRows,
+                                       line.second, '0', '0', false,
+                                       activeLookups);
+
+    candidateAndDictionaryRows = DeduplicateRows(candidateAndDictionaryRows);
+    std::unordered_set<string> insertedKeys;
+    for (const EmittedLine& line : candidateAndDictionaryRows)
+        insertedKeys.insert(line.dedupeKey);
+    dictionaryOnlyRows = DeduplicateRows(dictionaryOnlyRows, &insertedKeys);
+
+    string result;
+    for (const EmittedLine& line : candidateAndDictionaryRows)
+        result += line.commentLine;
+    for (const EmittedLine& line : dictionaryOnlyRows)
+        result += line.commentLine;
+    if (!result.empty())
+        phrase->set_comment(prefix + "\f" + result);
 }
 
 }  // namespace rime
