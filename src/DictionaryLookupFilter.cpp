@@ -344,7 +344,7 @@ bool DictionaryLookupFilter::GetWordsFromUserDictEntry(
     vector<pair<string, string>>& words,
     Dictionary* dictionary) {
     bool success = false;
-    if (!entry.elements.empty()) {
+    if (dictionary && !entry.elements.empty()) {
         vector<string> syllables;
         if (dictionary->Decode(entry.code, &syllables)) {
             size_t i = 0;
