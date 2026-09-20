@@ -259,7 +259,13 @@ string ParseEntry(Dictionary* dictionary,
                   string honzi,
                   string jyutping,
                   const bool isSentence,
+                  bool* hasNonSyntheticCandidateRows,
+                  string* dictionaryOnlyResult,
                   std::unordered_set<string>& activeLookups) {
+    if (hasNonSyntheticCandidateRows)
+        *hasNonSyntheticCandidateRows = false;
+    if (dictionaryOnlyResult)
+        dictionaryOnlyResult->clear();
     boost::remove_erase_if(jyutping, boost::is_any_of("; "));
     const string lookupKey = honzi + "\f" + jyutping;
     if (activeLookups.find(lookupKey) != activeLookups.end())
@@ -324,11 +330,16 @@ string ParseEntry(Dictionary* dictionary,
         insertedKeys.insert(line.dedupeKey);
     dictionaryOnlyRows = DeduplicateRows(dictionaryOnlyRows, &insertedKeys);
 
+    if (hasNonSyntheticCandidateRows)
+        *hasNonSyntheticCandidateRows = !matchedLines.empty();
     string result;
     for (const EmittedLine& line : candidateAndDictionaryRows)
         result += line.commentLine;
-    for (const EmittedLine& line : dictionaryOnlyRows)
+    for (const EmittedLine& line : dictionaryOnlyRows) {
         result += line.commentLine;
+        if (dictionaryOnlyResult)
+            *dictionaryOnlyResult += line.commentLine;
+    }
     activeLookups.erase(lookupKey);
     return result;
 }
@@ -418,11 +429,17 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     const string spellingCode = phrase->comment();
     const size_t startPos = spellingCode.find('\f');
     const string prefix = spellingCode.substr(0, startPos);
+    bool hasNonSyntheticCandidateRows = false;
+    string dictionaryOnlyResult;
     string result = ParseEntry(
         cand->text(),
         startPos == string::npos ? "" : spellingCode.substr(startPos + 1),
-        false);
-    if (!result.empty()) {
+        false,
+        &hasNonSyntheticCandidateRows,
+        &dictionaryOnlyResult);
+    // Synthetic 1 rows keep the candidate usable, but do not prevent recovery
+    // of a composition and its component entries from the IME.
+    if (hasNonSyntheticCandidateRows) {
         phrase->set_comment(prefix + "\f" + result);
         return;
     }
@@ -453,23 +470,33 @@ void DictionaryLookupFilter::Process(const an<Candidate>& cand) {
     } else
         GetWordsFromUserDictEntry(phrase->entry(), words, dictionary);
     if (!words.empty()) {
-        string entries;
+        string compositionJyutping, entries;
         std::unordered_set<string> cache;
         for (pair<string, string>& word : words) {
-            result += word.second;
+            compositionJyutping += word.second;
             if (cache.find(word.first) == cache.end()) {
               entries += ParseEntry(word.first, word.second, true);
               cache.insert(word.first);
             }
         }
-        phrase->set_comment(prefix + "\f\r1," + cand->text() + "," + result +
-                            ",,,,,,,composition,,,,,,,," + entries);
+        phrase->set_comment(prefix + "\f\r1," + cand->text() + "," +
+                            compositionJyutping +
+                            ",,,,,,,composition,,,,,,,," + entries +
+                            dictionaryOnlyResult);
+    } else if (!result.empty()) {
+        phrase->set_comment(prefix + "\f" + result);
     }
 }
 
-string DictionaryLookupFilter::ParseEntry(string honzi, string jyutping, const bool isSentence) {
+string DictionaryLookupFilter::ParseEntry(
+    string honzi,
+    string jyutping,
+    const bool isSentence,
+    bool* hasNonSyntheticCandidateRows,
+    string* dictionaryOnlyResult) {
     std::unordered_set<string> activeLookups;
     return rime::ParseEntry(dict_.get(), honzi, jyutping, isSentence,
+                            hasNonSyntheticCandidateRows, dictionaryOnlyResult,
                             activeLookups);
 }
 
