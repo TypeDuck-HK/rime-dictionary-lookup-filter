@@ -12,6 +12,7 @@
 #include <rime/filter.h>
 #include <rime/algo/algebra.h>
 #include <rime/gear/filter_commons.h>
+#include <rime/gear/translator_commons.h>
 #include <rime/ticket.h>
 #include <rime/dict/dictionary.h>
 

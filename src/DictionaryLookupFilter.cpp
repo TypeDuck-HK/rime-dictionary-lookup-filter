@@ -12,8 +12,6 @@
 #include <rime/schema.h>
 #include <rime/translation.h>
 #include <rime/dict/reverse_lookup_dictionary.h>
-#include <rime/dict/dictionary.h>
-#include <rime/gear/translator_commons.h>
 #include <rime/gear/script_translator.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
